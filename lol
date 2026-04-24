@@ -1,0 +1,75 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local OUTLINE_COLOR = Color3.fromRGB(255, 0, 234)
+local MAX_DISTANCE = 150
+
+local function ensureHighlight(character: Model)
+	local existing = character:FindFirstChild("PlayerESP_Highlight")
+	if existing then return existing end
+
+	local h = Instance.new("Highlight")
+	h.Name = "PlayerESP_Highlight"
+	h.Adornee = character
+	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
+	
+	h.FillTransparency = 1
+	h.OutlineTransparency = 0
+	h.OutlineColor = OUTLINE_COLOR
+	
+	h.Enabled = false -- start hidden
+	h.Parent = character
+	return h
+end
+
+local function applyESPToPlayer(otherPlayer: Player)
+	if otherPlayer == LocalPlayer then return end
+
+	local function onCharacter(character: Model)
+		task.wait(0.2)
+
+		if Players:GetPlayerFromCharacter(character) ~= otherPlayer then return end
+
+		local highlight = ensureHighlight(character)
+
+		local function updateVisibility()
+			local localChar = LocalPlayer.Character
+			if not localChar then return end
+
+			local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+			local otherRoot = character:FindFirstChild("HumanoidRootPart")
+
+			if not localRoot or not otherRoot then return end
+
+			local distance = (localRoot.Position - otherRoot.Position).Magnitude
+
+			if distance <= MAX_DISTANCE then
+				highlight.Enabled = true
+			else
+				highlight.Enabled = false
+			end
+		end
+
+		-- update every frame
+		local runService = game:GetService("RunService")
+		runService.RenderStepped:Connect(updateVisibility)
+	end
+
+	otherPlayer.CharacterAdded:Connect(onCharacter)
+	if otherPlayer.Character then
+		onCharacter(otherPlayer.Character)
+	end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+	applyESPToPlayer(p)
+end
+
+Players.PlayerAdded:Connect(applyESPToPlayer)
+
+Players.PlayerRemoving:Connect(function(p)
+	if p.Character then
+		local h = p.Character:FindFirstChild("PlayerESP_Highlight")
+		if h then h:Destroy() end
+	end
+end)
